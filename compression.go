@@ -198,13 +198,14 @@ func (dr *DecompressionReader) Read(data []byte) (int, error) {
     return 0, errors.New("Unreachable")
 }
 
-func (dr *DecompressionReader) Close() {
+func (dr *DecompressionReader) Close() error {
     C.lzma_end(&dr.mStream)
     C.free(dr.mReadBuffer)
     C.free(dr.mTempBuffer)
     dr.mReadBuffer = nil
     dr.mTempBuffer = nil
     dr.mTempBufferLen = 0
+    return nil
 }
 
 
