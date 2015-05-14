@@ -85,23 +85,23 @@ var LZMA_CHECK_SHA256 = C.lzma_check(10)
 var IMPL_LZMA_BUFFER_LENGTH = C.size_t(4096)
 
 type NopCloseReadWrapper struct {
-    r io.Reader
+    R io.Reader
 }
 func (r *NopCloseReadWrapper) Close () error {
     return nil
 }
 func (r *NopCloseReadWrapper) Read(data []byte) (int, error) {
-    return r.r.Read(data)
+    return r.R.Read(data)
 }
 
 type NopCloseWriteWrapper struct {
-    r io.Writer
+    W io.Writer
 }
 func (r *NopCloseWriteWrapper) Close () error {
     return nil
 }
 func (r *NopCloseWriteWrapper) Write(data []byte) (int, error) {
-    return r.r.Write(data)
+    return r.W.Write(data)
 }
 
 
