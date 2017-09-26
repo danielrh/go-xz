@@ -212,8 +212,14 @@ func (dr *DecompressionReader) Close() error {
 func NewCompressionWriter(w io.Writer) CompressionWriter {
     return NewCompressionWriteCloser(&NopCloseWriteWrapper{w})
 }
+func NewCompressionWriterPreset(w io.Writer, preset int) CompressionWriter {
+    return NewCompressionWritePresetCloser(&NopCloseWriteWrapper{w}, preset)
+}
 
 func NewCompressionWriteCloser(w io.WriteCloser) (retval CompressionWriter) {
+    return NewCompressionWritePresetCloser(w, 9);
+}
+func NewCompressionWritePresetCloser(w io.WriteCloser, preset int) (retval CompressionWriter) {
     retval.mWriteBuffer = C.malloc(IMPL_LZMA_BUFFER_LENGTH)
     retval.mTempBuffer = C.malloc(IMPL_LZMA_BUFFER_LENGTH)
     retval.mTempBufferLen = int(IMPL_LZMA_BUFFER_LENGTH)
@@ -221,7 +227,7 @@ func NewCompressionWriteCloser(w io.WriteCloser) (retval CompressionWriter) {
     retval.mBase = w;
     //retval.mStream =  LZMA_STREAM_INIT;
     var ret C.lzma_ret
-    ret = C.lzma_easy_encoder(&retval.mStream, 9, LZMA_CHECK_CRC64);
+    ret = C.lzma_easy_encoder(&retval.mStream, (C.uint32_t)(preset), LZMA_CHECK_CRC64);
 	retval.mStream.avail_in = 0;
     if (ret != LZMA_OK) {
         switch(ret) {
