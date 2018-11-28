@@ -48,6 +48,7 @@ type DecompressionReader struct {
     mReadBuffer    unsafe.Pointer
     mTempBuffer    unsafe.Pointer
     mTempBufferLen int
+    mEof           bool
 }
 type CompressionWriter struct {
     mBase          io.WriteCloser
@@ -113,6 +114,7 @@ func NewDecompressionReadCloser(r io.ReadCloser) (retval DecompressionReader) {
     retval.mTempBuffer = C.malloc(IMPL_LZMA_BUFFER_LENGTH)
     retval.mTempBufferLen = int(IMPL_LZMA_BUFFER_LENGTH)
     retval.mBase = r;
+    retval.mEof = false
     //mStream = LZMA_STREAM_INIT;<-- assume we're zero initialized
     var ret C.lzma_ret
     ret = C.lzma_stream_decoder(
@@ -162,20 +164,32 @@ func (dr *DecompressionReader) Read(data []byte) (int, error) {
         var action C.lzma_action
         action = LZMA_RUN;
         var err error
-        if (dr.mStream.avail_in == 0) {
+        if (dr.mStream.avail_in == 0 && !dr.mEof) {
             dr.mStream.next_in = (*C.uint8_t)(dr.mReadBuffer);
             var bytesRead int
             bytesRead, err = dr.mBase.Read(readSlice)
             dr.mStream.avail_in = C.size_t(bytesRead);
-            if (bytesRead == 0) {
-                action = LZMA_FINISH;
+            if err == io.EOF {
+                dr.mEof = true
+            } else if err != nil {
+                return 0, err
             }
         }
+        if (dr.mStream.avail_in == 0) {
+            action = LZMA_FINISH
+        }
+
         var ret C.lzma_ret
         ret = C.lzma_code(&dr.mStream, action);
         if (dr.mStream.avail_out == 0 || ret == LZMA_STREAM_END) {
             writeSize := len(data) - int(dr.mStream.avail_out)
             copy(data[:writeSize], tempSlice[:writeSize])
+
+            if ret == LZMA_STREAM_END {
+                err = io.EOF
+            } else {
+                err = nil
+            }
             return writeSize, err
 /////                                                (ret == LZMA_STREAM_END
 /////                                                 || (ret == LZMA_OK &&writeSize > 0))

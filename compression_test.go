@@ -86,3 +86,61 @@ func TestRoundTrip(t *testing.T) {
         t.Errorf("Data to compress got bigger after xzing")
     }
 }
+
+type earlyEofReader struct {
+    r io.Reader
+}
+
+func (eer *earlyEofReader) Read(p []byte) (int, error) {
+    n, _ := eer.r.Read(p)
+    return n, io.EOF
+}
+
+func TestRoundTripEarlyEof(t *testing.T) {
+     byteArray := make([]byte, 8192)
+     initialReader :=  bytes.NewBuffer(byteArray)
+     var compressedData bytes.Buffer
+     cw := NewCompressionWriter(&compressedData)
+     for {
+        var buffer [4096]byte
+        nRead, readErr := initialReader.Read(buffer[:])
+        if readErr != nil && readErr != io.EOF {
+            panic(readErr)
+        }
+        nWrite, writeErr := cw.Write(buffer[:nRead])
+        if writeErr != nil {
+            panic(writeErr)
+        }
+        _ = nWrite
+        if readErr != nil {
+            break
+        }
+    }
+    cw.Close()
+    dr := NewDecompressionReader(&earlyEofReader{r: bytes.NewBuffer(compressedData.Bytes())})
+    var roundTrippedData bytes.Buffer
+    for {
+        var buffer [4096]byte
+        nRead, readErr := dr.Read(buffer[:])
+        if readErr != nil && readErr != io.EOF {
+            panic(readErr)
+        }
+        nWrite, writeErr := roundTrippedData.Write(buffer[:nRead])
+        if writeErr != nil || nWrite < nRead{
+            panic(writeErr)
+        }
+        if readErr != nil {
+            break
+        }
+    }
+    dr.Close()
+    if !bytes.Equal(byteArray, roundTrippedData.Bytes()) {
+        t.Errorf("Byte array does not match")
+    }
+    if string(compressedData.Bytes()[1:5]) != "7zXZ" {
+        t.Errorf("Invalid 7z signature")
+    }
+    if len(compressedData.Bytes()) > len(byteArray) {
+        t.Errorf("Data to compress got bigger after xzing")
+    }
+}
